@@ -1,0 +1,5 @@
+oracle_scheduler,n_workloads,accuracy,avg_regret_pct,median_regret_pct,max_regret_pct,avg_score_gap
+RR,40,0.7,5.1028,0.0,57.8966,0.0313
+SJF,373,0.7346,7.4592,0.0,84.3889,0.0572
+Priority,52,0.25,16.7832,5.5901,79.7101,0.1419
+MLFQ,35,0.6286,7.9927,0.0,58.2019,0.0639
