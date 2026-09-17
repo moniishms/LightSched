@@ -13,8 +13,8 @@ from schedulers_v2 import (
 # SETTINGS
 # ============================================================
 
-INPUT_FILE = "lightsched_workload_dataset.csv"
-OUTPUT_FILE = "lightsched_labeled_dataset_v2.csv"
+INPUT_FILE = "lightsched_shifted_stream.csv"
+OUTPUT_FILE = "lightsched_shifted_labeled_dataset_v2.csv"
 
 # Weights for combined scheduler score
 WEIGHTS = {

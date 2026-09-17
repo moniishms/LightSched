@@ -6,8 +6,8 @@ import numpy as np
 # LIGHTSCHED - FEATURE ENGINEERING
 # ============================================================
 
-INPUT_FILE = "lightsched_workload_dataset.csv"
-OUTPUT_FILE = "lightsched_ml_features.csv"
+INPUT_FILE = "lightsched_shifted_stream.csv"
+OUTPUT_FILE = "lightsched_shifted_ml_features.csv"
 
 
 # ============================================================
