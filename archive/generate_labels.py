@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from schedulers import (
+from archive.schedulers import (
     round_robin,
     sjf,
     priority_scheduling,

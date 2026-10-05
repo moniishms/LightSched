@@ -1,4 +1,4 @@
-from schedulers import (
+from archive.schedulers import (
     round_robin,
     sjf,
     priority_scheduling,
