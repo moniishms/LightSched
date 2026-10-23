@@ -115,41 +115,19 @@ def convert_workload(group):
 def extract_features(group):
 
     num_processes = len(group)
-
-    avg_arrival_time = group["arrival_time"].mean()
-
-    arrival_time_variance = group["arrival_time"].var()
-
-    avg_burst_time = group["burst_time"].mean()
-
-    burst_time_variance = group["burst_time"].var()
-
-    avg_priority = group["priority"].mean()
-
-    avg_io_frequency = group["io_frequency"].mean()
-
     arrival_span = (
-        group["arrival_time"].max()
-        - group["arrival_time"].min()
+        group["arrival_time"].max() - group["arrival_time"].min() + 1
     )
-
-    if arrival_span == 0:
-
-        arrival_rate = num_processes
-
-    else:
-
-        arrival_rate = num_processes / arrival_span
 
     return {
         "num_processes": num_processes,
-        "avg_arrival_time": avg_arrival_time,
-        "arrival_time_variance": arrival_time_variance,
-        "avg_burst_time": avg_burst_time,
-        "burst_time_variance": burst_time_variance,
-        "avg_priority": avg_priority,
-        "avg_io_frequency": avg_io_frequency,
-        "arrival_rate": arrival_rate
+        "avg_arrival_time": group["arrival_time"].mean(),
+        "arrival_time_variance": group["arrival_time"].var(ddof=0),
+        "avg_burst_time": group["burst_time"].mean(),
+        "burst_time_variance": group["burst_time"].var(ddof=0),
+        "avg_priority": group["priority"].mean(),
+        "avg_io_frequency": group["io_frequency"].mean(),
+        "arrival_rate": num_processes / arrival_span,
     }
 
 
@@ -600,6 +578,16 @@ results_df.to_csv(
     output_file,
     index=False
 )
+score_cols = [f"{s}_score" for s in schedulers]
+perf = results_df[["workload_id", "predicted_scheduler",
+                   "actual_best_scheduler", "prediction_correct"] + score_cols].copy()
+perf = perf.rename(columns={"actual_best_scheduler": "oracle_scheduler"})
+perf["lightsched_score"] = [r[f"{r['predicted_scheduler']}_score"] for _, r in results_df.iterrows()]
+perf["oracle_score"] = [r[f"{r['actual_best_scheduler']}_score"] for _, r in results_df.iterrows()]
+perf["score_gap"] = perf["oracle_score"] - perf["lightsched_score"]
+perf["regret_percentage"] = np.where(
+    perf["oracle_score"] != 0, perf["score_gap"] / perf["oracle_score"] * 100.0, 0.0)
+perf.to_csv("lightsched_performance_evaluation.csv", index=False)
 
 
 print("\n" + "=" * 70)

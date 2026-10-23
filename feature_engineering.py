@@ -5,10 +5,10 @@ import numpy as np
 # ============================================================
 # LIGHTSCHED - FEATURE ENGINEERING
 # ============================================================
-
-INPUT_FILE = "lightsched_shifted_stream.csv"
-OUTPUT_FILE = "lightsched_shifted_ml_features.csv"
-
+import sys
+INPUT_FILE  = sys.argv[1] if len(sys.argv) > 1 else "lightsched_workload_dataset.csv"
+OUTPUT_FILE = sys.argv[2] if len(sys.argv) > 2 else "lightsched_ml_features.csv"
+# in generate_labels_v2.py the default output is "lightsched_labeled_dataset_v2.csv"
 
 # ============================================================
 # 1. LOAD RAW WORKLOAD DATASET

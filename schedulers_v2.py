@@ -141,12 +141,14 @@ def calculate_metrics(processes, total_time, cpu_busy):
 # COMMON FUNCTIONS
 # ============================================================
 
-def add_to_ready(process, current_time, ready_queue):
-
+def add_to_ready(process, ready_time, ready_queue):
+    """ready_time = when the process TRULY became ready (arrival time,
+    I/O completion time, or preemption time), not when the simulator
+    happened to notice it."""
     process["state"] = "READY"
 
     if process["ready_since"] is None:
-        process["ready_since"] = current_time
+        process["ready_since"] = ready_time
 
     ready_queue.append(process)
 
@@ -201,37 +203,27 @@ def finish_cpu_burst(process, current_time, blocked):
 
 def check_new_arrivals(processes, current_time, ready_queue):
 
-    for p in processes:
+    arrived = [
+        p for p in processes
+        if p["state"] == "NEW" and p["arrival_time"] <= current_time
+    ]
 
-        if (
-            p["state"] == "NEW"
-            and p["arrival_time"] <= current_time
-        ):
-
-            add_to_ready(
-                p,
-                current_time,
-                ready_queue
-            )
+    # enqueue in true arrival order
+    for p in sorted(arrived, key=lambda p: (p["arrival_time"], p["pid"])):
+        add_to_ready(p, p["arrival_time"], ready_queue)
 
 
 def check_io_completion(processes, current_time, ready_queue):
 
-    for p in processes:
+    done = [
+        p for p in processes
+        if p["state"] == "BLOCKED" and p["blocked_until"] <= current_time
+    ]
 
-        if (
-            p["state"] == "BLOCKED"
-            and p["blocked_until"] <= current_time
-        ):
-
-            p["blocked_until"] = None
-
-            add_to_ready(
-                p,
-                current_time,
-                ready_queue
-            )
-
+    for p in sorted(done, key=lambda p: (p["blocked_until"], p["pid"])):
+        ready_time = p["blocked_until"]
+        p["blocked_until"] = None
+        add_to_ready(p, ready_time, ready_queue)
 
 def all_completed(processes):
 
@@ -571,66 +563,28 @@ def mlfq(processes, quantum_q0=4, quantum_q1=8):
 
     while not all_completed(processes):
 
-        # Add new processes to highest queue
-        for p in processes:
-
-            if (
-                p["state"] == "NEW"
-                and p["arrival_time"] <= time
-            ):
-
-                add_to_ready(
-                    p,
-                    time,
-                    q0
-                )
-
-        # I/O completed → return to highest queue
-        for p in processes:
-
-            if (
-                p["state"] == "BLOCKED"
-                and p["blocked_until"] <= time
-            ):
-
-                p["blocked_until"] = None
-
-                add_to_ready(
-                    p,
-                    time,
-                    q0
-                )
+        # New arrivals and finished I/O go to the top queue,
+        # stamped with their TRUE ready time
+        check_new_arrivals(processes, time, q0)
+        check_io_completion(processes, time, q0)
 
         # Select highest non-empty queue
         if q0:
-            queue = q0
-            quantum = quantum_q0
-            level = 0
-
+            queue, quantum, level = q0, quantum_q0, 0
         elif q1:
-            queue = q1
-            quantum = quantum_q1
-            level = 1
-
+            queue, quantum, level = q1, quantum_q1, 1
         elif q2:
-            queue = q2
-            quantum = None
-            level = 2
-
+            queue, quantum, level = q2, None, 2
         else:
-
             future_times = []
 
             for p in processes:
-
                 if p["state"] == "NEW":
                     future_times.append(p["arrival_time"])
-
                 elif p["state"] == "BLOCKED":
                     future_times.append(p["blocked_until"])
 
             if future_times:
-
                 time = min(future_times)
 
             continue
@@ -638,11 +592,7 @@ def mlfq(processes, quantum_q0=4, quantum_q1=8):
         p = queue.popleft()
 
         if p["ready_since"] is not None:
-
-            p["waiting_time"] += (
-                time - p["ready_since"]
-            )
-
+            p["waiting_time"] += time - p["ready_since"]
             p["ready_since"] = None
 
         p["state"] = "RUNNING"
@@ -651,82 +601,25 @@ def mlfq(processes, quantum_q0=4, quantum_q1=8):
             p["first_start"] = time
 
         if quantum is None:
-
             run_time = p["remaining_cpu"]
-
         else:
-
-            run_time = min(
-                quantum,
-                p["remaining_cpu"]
-            )
+            run_time = min(quantum, p["remaining_cpu"])
 
         p["remaining_cpu"] -= run_time
 
         time += run_time
         cpu_busy += run_time
 
-        # Handle arrivals / I/O
-        for new_p in processes:
+        # Arrivals / I/O completions that happened during the run
+        check_new_arrivals(processes, time, q0)
+        check_io_completion(processes, time, q0)
 
-            if (
-                new_p["state"] == "NEW"
-                and new_p["arrival_time"] <= time
-            ):
-
-                add_to_ready(
-                    new_p,
-                    time,
-                    q0
-                )
-
-        for blocked_p in processes:
-
-            if (
-                blocked_p["state"] == "BLOCKED"
-                and blocked_p["blocked_until"] <= time
-            ):
-
-                blocked_p["blocked_until"] = None
-
-                add_to_ready(
-                    blocked_p,
-                    time,
-                    q0
-                )
-
-        # CPU burst completed
         if p["remaining_cpu"] == 0:
-
-            finish_cpu_burst(
-                p,
-                time,
-                []
-            )
+            finish_cpu_burst(p, time, [])
 
         else:
+            # Quantum expired: demote (q2 stays in q2)
+            next_queue = q1 if level == 0 else q2
+            add_to_ready(p, time, next_queue)
 
-            # Quantum expired
-            if level == 0:
-
-                p["state"] = "READY"
-                p["ready_since"] = time
-                q1.append(p)
-
-            elif level == 1:
-
-                p["state"] = "READY"
-                p["ready_since"] = time
-                q2.append(p)
-
-            else:
-
-                p["state"] = "READY"
-                p["ready_since"] = time
-                q2.append(p)
-
-    return calculate_metrics(
-        processes,
-        time,
-        cpu_busy
-    )
+    return calculate_metrics(processes, time, cpu_busy)

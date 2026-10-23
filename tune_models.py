@@ -288,66 +288,15 @@ results_df.to_csv(
 print("\nSaved results to:")
 print("ml_model_results_tuned.csv")
 
-# ============================================================
-# 10. FINAL MODEL
-# ============================================================
+# Model ranking uses CROSS-VALIDATION score, never the test score
+cv_ranking = results_df.sort_values("best_cv_macro_f1", ascending=False)
+print("\nRanking by CV macro-F1:")
+print(cv_ranking[["model", "best_cv_macro_f1", "f1_macro"]].to_string(index=False))
 
-best_model_name = results_df.iloc[0]["model"]
-
-print("\n" + "=" * 70)
-print("FINAL MODEL BASED ON TEST MACRO F1")
-print("=" * 70)
-
-print("Selected model:", best_model_name)
-
-print("\nBest model parameters:")
-
-selected_model = best_models[best_model_name]
-
-# Find the GridSearch result again so we can display
-# its exact best parameters.
-selected_base_model, selected_param_grid = models[best_model_name]
-
-selected_grid = GridSearchCV(
-    estimator=selected_base_model,
-    param_grid=selected_param_grid,
-    scoring=scoring,
-    cv=cv,
-    n_jobs=-1,
-    refit=True
-)
-
-selected_grid.fit(X_train, y_train)
-
-print(selected_grid.best_params_)
-
-# ============================================================
-# 11. SAVE FINAL MODEL
-# ============================================================
-
-import joblib
-import os
-
+# RF is the pre-declared final model for the paper; the CV ranking above
+# is reported alongside it.
+import joblib, os
 os.makedirs("models", exist_ok=True)
-
-model_filename = (
-    best_model_name.lower()
-    .replace(" ", "_")
-    .replace("-", "_")
-    + "_tuned.joblib"
-)
-
-model_path = os.path.join(
-    "models",
-    model_filename
-)
-
-joblib.dump(
-    selected_grid.best_estimator_,
-    model_path
-)
-
-print("\nFinal tuned model saved to:")
-print(model_path)
-
-print("\nTuning completed successfully.")
+joblib.dump(best_models["Random Forest"], "models/random_forest_tuned.joblib")
+print("\nSaved: models/random_forest_tuned.joblib")
+print(best_models["Random Forest"].get_params())

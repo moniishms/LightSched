@@ -1,0 +1,17 @@
+objective,policy,mean_regret_%,median_%,p90_%,within_5%
+avg_turnaround,Always-SJF,0.535,0.0,0.918,0.98
+avg_turnaround,Best-fixed (SJF),0.535,0.0,0.918,0.98
+avg_turnaround,RF,0.536,0.0,0.854,0.98
+avg_turnaround,RF balanced,0.869,0.0,2.01,0.948
+avg_response,Always-SJF,1054.313,764.086,2438.657,0.01
+avg_response,Best-fixed (MLFQ),0.596,0.0,0.0,0.98
+avg_response,RF,0.628,0.0,0.0,0.98
+avg_response,RF balanced,1.395,0.0,0.0,0.966
+max_waiting,Always-SJF,16.072,3.161,27.64,0.604
+max_waiting,Best-fixed (RR),2.864,0.0,3.487,0.918
+max_waiting,RF,3.119,0.0,4.215,0.91
+max_waiting,RF balanced,10.428,0.0,11.424,0.812
+p95_turnaround,Always-SJF,0.886,0.0,2.602,0.946
+p95_turnaround,Best-fixed (SJF),0.886,0.0,2.602,0.946
+p95_turnaround,RF,0.786,0.0,2.602,0.95
+p95_turnaround,RF balanced,1.797,0.0,5.867,0.88

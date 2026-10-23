@@ -8,6 +8,7 @@ import joblib
 
 INPUT_FILE = "lightsched_real_world_3000.csv"
 MODEL_FILE = "models/random_forest_tuned.joblib"
+TRAIN_FEATURE_FILE = "lightsched_ml_features.csv"
 OUTPUT_FILE = "lightsched_real_world_demo_predictions.csv"
 
 
@@ -44,8 +45,6 @@ features = [
     "arrival_rate"
 ]
 
-
-# Check that required features exist
 missing_features = [
     feature for feature in features
     if feature not in df.columns
@@ -58,26 +57,10 @@ if missing_features:
 
 
 # ============================================================
-# 4. Prepare feature matrix
+# 4. Prepare feature matrix (fill missing values first)
 # ============================================================
 
 X = df[features].copy()
-
-
-# ============================================================
-# 5. Handle unavailable I/O-frequency feature
-# ============================================================
-
-# Perfetto sched_slice export does not provide the same
-# I/O-frequency feature used by the synthetic training data.
-# Therefore, use 0 as the adapter value for this demonstration.
-
-X["avg_io_frequency"] = 0.0
-
-
-# ============================================================
-# 6. Handle any remaining missing values
-# ============================================================
 
 if X.isnull().any().any():
 
@@ -86,11 +69,48 @@ if X.isnull().any().any():
     print("Missing feature values detected:")
     print(missing_counts[missing_counts > 0])
 
-    # Use column medians as a simple demonstration fallback
+    # Column medians as a simple demonstration fallback
     X = X.fillna(X.median(numeric_only=True))
 
     # If any column is still completely empty
     X = X.fillna(0.0)
+
+
+# ============================================================
+# 5. Training-range check (how far are trace windows from the
+#    synthetic training data the model has seen?)
+# ============================================================
+
+train_feats = pd.read_csv(TRAIN_FEATURE_FILE)
+
+lo = train_feats[features].min()
+hi = train_feats[features].max()
+
+in_range = (X >= lo) & (X <= hi)
+
+# I/O frequency is excluded: it is replaced by an adapter below
+pct_inside = (
+    in_range.drop(columns="avg_io_frequency").all(axis=1).mean() * 100
+)
+
+print()
+print("-" * 65)
+print("TRAINING-RANGE CHECK")
+print("-" * 65)
+print(f"Windows fully inside training range (excl. I/O): {pct_inside:.1f}%")
+print("Per-feature in-range %:")
+print((in_range.mean() * 100).round(1).to_string())
+
+
+# ============================================================
+# 6. Handle unavailable I/O-frequency feature
+# ============================================================
+
+# Perfetto sched_slice export does not provide the same
+# I/O-frequency feature used by the synthetic training data.
+# Therefore, use 0 as the adapter value for this demonstration.
+
+X["avg_io_frequency"] = 0.0
 
 
 # ============================================================
@@ -103,7 +123,7 @@ df["predicted_scheduler"] = predictions
 
 
 # ============================================================
-# 8. Prediction confidence
+# 8. Model score (random-forest vote share, NOT calibrated)
 # ============================================================
 
 probabilities = model.predict_proba(X)
@@ -116,7 +136,26 @@ df["prediction_confidence_percent"] = (
 
 
 # ============================================================
-# 9. Save demonstration results
+# 9. Stability and robustness checks
+# ============================================================
+
+# How often does the recommendation change between consecutive windows?
+flip_rate = (
+    (df["predicted_scheduler"] != df["predicted_scheduler"].shift())
+    .iloc[1:]
+    .mean()
+)
+
+# How much does the I/O adapter matter? Compare I/O = 0 against
+# I/O = training median.
+X_alt = X.copy()
+X_alt["avg_io_frequency"] = train_feats["avg_io_frequency"].median()
+
+io_agreement = (model.predict(X_alt) == predictions).mean()
+
+
+# ============================================================
+# 10. Save demonstration results
 # ============================================================
 
 # Existing file is automatically overwritten.
@@ -127,7 +166,7 @@ df.to_csv(
 
 
 # ============================================================
-# 10. Trace information
+# 11. Trace information
 # ============================================================
 
 num_windows = len(df)
@@ -144,14 +183,12 @@ else:
 
 if "utid" in df.columns:
     num_threads = df["utid"].nunique()
-elif "num_processes" in df.columns:
-    num_threads = df["num_processes"].sum()
 else:
-    num_threads = "N/A"
+    num_threads = "N/A (utid not in export)"
 
 
 # ============================================================
-# 11. Display demonstration summary
+# 12. Display demonstration summary
 # ============================================================
 
 print()
@@ -184,7 +221,7 @@ print(f"Unique Android threads  : {num_threads}")
 
 
 # ============================================================
-# 12. Prediction distribution
+# 13. Prediction distribution
 # ============================================================
 
 print()
@@ -212,39 +249,58 @@ for scheduler, count in distribution.items():
 
 
 # ============================================================
-# 13. Confidence summary
+# 14. Stability and robustness summary
 # ============================================================
 
 print()
 print("-" * 65)
-print("PREDICTION CONFIDENCE")
+print("STABILITY AND ROBUSTNESS")
 print("-" * 65)
 
 print(
-    f"Mean confidence         : "
+    f"Prediction flip rate between consecutive windows : "
+    f"{flip_rate * 100:.1f}%"
+)
+
+print(
+    f"Agreement when I/O adapter = training median     : "
+    f"{io_agreement * 100:.1f}%"
+)
+
+
+# ============================================================
+# 15. Model score summary
+# ============================================================
+
+print()
+print("-" * 65)
+print("MODEL SCORE (RF vote share, uncalibrated)")
+print("-" * 65)
+
+print(
+    f"Mean score              : "
     f"{df['prediction_confidence_percent'].mean():.2f}%"
 )
 
 print(
-    f"Minimum confidence      : "
+    f"Minimum score           : "
     f"{df['prediction_confidence_percent'].min():.2f}%"
 )
 
 print(
-    f"Maximum confidence      : "
+    f"Maximum score           : "
     f"{df['prediction_confidence_percent'].max():.2f}%"
 )
 
 
 # ============================================================
-# 14. Selected real-world windows
+# 16. Selected real-world windows
 # ============================================================
 
 print()
 print("-" * 65)
 print("SAMPLE REAL-WORLD PREDICTIONS")
 print("-" * 65)
-
 
 # Select windows distributed across the trace
 sample_positions = [
@@ -266,7 +322,6 @@ sample_positions = sorted(
         if 0 <= position < len(df)
     )
 )
-
 
 for position in sample_positions:
 
@@ -320,13 +375,13 @@ for position in sample_positions:
     )
 
     print(
-        f"Confidence : "
+        f"Score      : "
         f"{row['prediction_confidence_percent']:.2f}%"
     )
 
 
 # ============================================================
-# 15. Final message
+# 17. Final message
 # ============================================================
 
 print()
@@ -336,10 +391,15 @@ print("from trace-derived Android workload windows.")
 print("=" * 65)
 
 print()
-print("NOTE:")
-print("These are trace-driven scheduler recommendations.")
-print("They do not represent kernel-level scheduler replacement")
-print("or counterfactual performance measurements on Android.")
+print("NOTES:")
+print("- These are trace-driven scheduler recommendations. They do not")
+print("  represent kernel-level scheduler replacement or counterfactual")
+print("  performance measurements on Android.")
+print("- No ground-truth best scheduler exists for these windows.")
+print("- I/O frequency is not available in the export and is set to 0.")
+print("- Feature units and ranges differ from the synthetic training data;")
+print("  see the training-range check above.")
+print("- Observed slice lengths were produced by Android's own scheduler.")
 
 print()
 print(f"Results saved to: {OUTPUT_FILE}")

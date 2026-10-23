@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use("Agg")
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -226,7 +228,7 @@ def rule_baseline_comparison():
 # ============================================================
 
 def training_label_distribution():
-    filename = "lightsched-label_dataset_v2.csv"
+    filename = "lightsched_labeled_dataset_v2.csv"
 
     if not os.path.exists(filename):
         print("\nSkipping training label distribution.")

@@ -40,46 +40,18 @@ FEATURE_COLUMNS = [
 # ============================================================
 
 def extract_features(workload):
-    """
-    Convert process-level workload data into the
-    8 workload-level features used by LightSched.
-    """
-
     num_processes = len(workload)
-
-    avg_arrival_time = workload["arrival_time"].mean()
-    arrival_time_variance = workload["arrival_time"].var()
-
-    avg_burst_time = workload["burst_time"].mean()
-    burst_time_variance = workload["burst_time"].var()
-
-    avg_priority = workload["priority"].mean()
-
-    avg_io_frequency = workload["io_frequency"].mean()
-
-    # Arrival rate = number of processes / time span
-    arrival_span = (
-        workload["arrival_time"].max()
-        - workload["arrival_time"].min()
-    )
-
-    if arrival_span == 0:
-        arrival_rate = num_processes
-    else:
-        arrival_rate = num_processes / arrival_span
-
-    features = pd.DataFrame([{
+    arrival_span = workload["arrival_time"].max() - workload["arrival_time"].min() + 1
+    return pd.DataFrame([{
         "num_processes": num_processes,
-        "avg_arrival_time": avg_arrival_time,
-        "arrival_time_variance": arrival_time_variance,
-        "avg_burst_time": avg_burst_time,
-        "burst_time_variance": burst_time_variance,
-        "avg_priority": avg_priority,
-        "avg_io_frequency": avg_io_frequency,
-        "arrival_rate": arrival_rate
+        "avg_arrival_time": workload["arrival_time"].mean(),
+        "arrival_time_variance": workload["arrival_time"].var(ddof=0),
+        "avg_burst_time": workload["burst_time"].mean(),
+        "burst_time_variance": workload["burst_time"].var(ddof=0),
+        "avg_priority": workload["priority"].mean(),
+        "avg_io_frequency": workload["io_frequency"].mean(),
+        "arrival_rate": num_processes / arrival_span,
     }])
-
-    return features
 
 
 # ============================================================
